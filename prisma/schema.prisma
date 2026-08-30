@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AnalysisStatus {
+  NOT_ANALYZED
+  QUEUED
+  ANALYZING
+  COMPLETED
+  FAILED
+}
+
+enum MoveClassificationType {
+  BEST
+  EXCELLENT
+  GOOD
+  INACCURACY
+  MISTAKE
+  BLUNDER
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  username  String
+  platform  String   @default("chess.com")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  games     Game[]
+
+  @@unique([platform, username])
+  @@index([username])
+}
+
+model Game {
+  id              String         @id @default(cuid())
+  externalId      String
+  playerId        String
+  whiteUsername   String
+  blackUsername   String
+  whiteRating     Int?
+  blackRating     Int?
+  result          String
+  timeControl     String?
+  playedAt        DateTime?
+  pgn             String         @db.Text
+  eco             String?
+  opening         String?
+  importedAt      DateTime       @default(now())
+  analyzedAt      DateTime?
+  analysisStatus  AnalysisStatus @default(NOT_ANALYZED)
+  player          Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  moves           Move[]
+  statistics      GameStatistics?
+
+  @@unique([playerId, externalId])
+  @@index([playerId, playedAt])
+  @@index([analysisStatus])
+  @@index([playerId, analysisStatus, playedAt])
+}
+
+model Move {
+  id                 String             @id @default(cuid())
+  gameId             String
+  moveNumber         Int
+  ply                Int
+  color              String
+  san                String
+  uci                String
+  fenBefore          String
+  fenAfter           String
+  capturedPiece      String?
+  isCheck            Boolean            @default(false)
+  isCapture          Boolean            @default(false)
+  isCastle           Boolean            @default(false)
+  isPromotion        Boolean            @default(false)
+  game               Game               @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  engineAnalysis     EngineAnalysis?
+  classification     MoveClassification?
+
+  @@unique([gameId, ply])
+  @@index([gameId, moveNumber])
+}
+
+model EngineAnalysis {
+  id                String   @id @default(cuid())
+  moveId            String   @unique
+  depth             Int
+  evaluation        Float
+  mate              Int?
+  bestMove          String?
+  principalVariation String? @db.Text
+  evaluationAfter   Float?
+  evaluationLoss    Float?
+  engineVersion     String
+  analyzedAt        DateTime @default(now())
+  move              Move     @relation(fields: [moveId], references: [id], onDelete: Cascade)
+}
+
+model MoveClassification {
+  id             String                 @id @default(cuid())
+  moveId         String                 @unique
+  classification MoveClassificationType
+  severity       Float?
+  reason         String?                @db.Text
+  createdAt      DateTime               @default(now())
+  move           Move                   @relation(fields: [moveId], references: [id], onDelete: Cascade)
+}
+
+model GameStatistics {
+  id               String   @id @default(cuid())
+  gameId           String   @unique
+  whiteAccuracy    Float?
+  blackAccuracy    Float?
+  whiteACPL        Float?
+  blackACPL        Float?
+  whiteBestMoves   Int      @default(0)
+  blackBestMoves   Int      @default(0)
+  whiteInaccuracies Int     @default(0)
+  blackInaccuracies Int     @default(0)
+  whiteMistakes    Int      @default(0)
+  blackMistakes    Int      @default(0)
+  whiteBlunders    Int      @default(0)
+  blackBlunders    Int      @default(0)
+  game             Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+}
