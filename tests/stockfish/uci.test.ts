@@ -7,7 +7,7 @@ describe('UCI parsing', () => {
   });
 
   it('parses centipawn score', () => {
-    expect(parseUciScore({ scoreCp: 137 })).toEqual({ evaluation: 1.37 });
+    expect(parseUciScore({ scoreCp: 137 })).toEqual({ evaluation: 1.37, mate: null });
   });
 
   it('parses mate score', () => {
