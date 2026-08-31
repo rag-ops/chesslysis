@@ -41,7 +41,7 @@ export function parseUciBestMove(line: string): string | null {
 
 export function parseUciScore(info: UciInfo): { evaluation: number; mate: number | null } {
   if (typeof info.scoreMate === 'number') return { evaluation: info.scoreMate > 0 ? 100000 : -100000, mate: info.scoreMate };
-  return { evaluation: (info.scoreCp ?? 0) / 100 };
+  return { evaluation: (info.scoreCp ?? 0) / 100, mate: null };
 }
 
 export class StockfishUciEngine {
