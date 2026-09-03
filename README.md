@@ -1,242 +1,231 @@
 # Chesslysis ♟️
 
-Advanced chess analytics powered by Stockfish.
+A portfolio-grade chess analytics platform inspired by profile-level chess insights. Chesslysis imports public Chess.com games, persists them, analyzes positions with Stockfish, and turns the resulting data into player-level intelligence.
 
-## Phase 1 — Foundation + Chess.com Import
+## Phase 4 — Stabilization Build
 
-Chesslysis imports a player's publicly available Chess.com games by username, stores the raw games and generated positions, and prepares them for Stockfish analysis.
+### Product capabilities
 
-### Current milestone: P1.2
-
-- Username-based Chess.com game discovery
-- Monthly archive discovery through the official Chess.com PubAPI
-- Serial archive fetching to reduce rate-limit risk
-- Date-range filtering
-- Time-control filtering
-- Maximum-game limit
-- Duplicate protection using Chess.com UUID/game URL
-- PGN validation and position generation
-- PostgreSQL persistence through Prisma
-- Import API: `POST /api/players/import`
-
-Chess.com documents the PubAPI as a read-only API for public player/game data. It also notes that responses may be cached for up to 12 hours and that parallel requests can trigger rate limiting, so the importer deliberately processes archives serially. citeturn0search0
-
-## Development
-
-```bash
-npm install
-cp .env.example .env
-npm run db:generate
-npm run db:push
-npm run dev
-```
-
-Set a descriptive `CHESSCOM_USER_AGENT` in `.env` with a way to contact you, as recommended by Chess.com's PubAPI guidance.
-
-## Import request
-
-```json
-{
-  "username": "your_username",
-  "maxGames": 100,
-  "timeClasses": ["rapid", "blitz"],
-  "from": "2026-01-01",
-  "to": "2026-08-26"
-}
-```
+- Real Chess.com username import through the public archive API
+- Game deduplication and PostgreSQL persistence
+- PGN parsing into normalized move and position records
+- Stockfish-backed move evaluation and classification
+- Real player dashboard (not demo data for normal usernames)
+- Advanced profile insights
+- Recurring mistake detection
+- Training recommendations
+- Player DNA / playing-style signals
+- Time-control performance intelligence
+- Opening and repertoire intelligence
+- Interactive Game Inspector with real imported games and stored engine analysis
+- Demo fixtures retained only for explicit `/demo` routes
+- Loading, empty, retry, 404, and controlled API error states
 
 ## Architecture
 
 ```text
-Chess.com PubAPI
-      ↓
-Archive discovery
-      ↓
-Monthly game JSON
-      ↓
-Filter + deduplicate
-      ↓
-PGN parser / position generator
-      ↓
-PostgreSQL
-      ↓
-Analysis queue
-      ↓
-Stockfish
-      ↓
-Move classifications
-      ↓
-Player analytics
+Chess.com public data
+        ↓
+Archive discovery + game import
+        ↓
+PostgreSQL / Prisma
+        ↓
+PGN → normalized moves + FEN positions
+        ↓
+Stockfish analysis
+        ↓
+Game statistics + classifications
+        ↓
+Dashboard / Insights / DNA / Openings / Time / Training / Inspector
 ```
 
-## Next
+## Local setup
 
-P1.3 will harden PGN/position parsing and add tests. P1.4 will connect the Stockfish worker and persist engine evaluations.
-
-## P1.3 — PGN & Position Reliability
-
-The parser now treats PGN as an input boundary and produces one normalized position record per main-line ply. Each record includes SAN, UCI, FEN before/after, capture/check/castling/promotion flags, and move number/ply.
-
-The test suite covers:
-- standard opening moves and FEN transitions
-- castling
-- captures and promotions
-- checks/checkmate
-- comments and variations
-- malformed and move-less PGNs
-
-Run locally with:
+### 1. Install
 
 ```bash
 npm install
-npm test
 ```
 
-
-## Phase 1.4 — Stockfish
-
-Chesslysis now includes a UCI Stockfish adapter. Set `STOCKFISH_PATH` to a local Stockfish executable. The adapter speaks the standard UCI protocol and returns depth, evaluation, mate score, best move, and principal variation.
-
-The Stockfish executable itself is intentionally not committed to the repository because it is platform-specific. For production, the same adapter can run in a dedicated analysis worker.
-
-
-## P1.5 — Move analysis
-
-`POST /api/games/:gameId/analyze` runs Stockfish sequentially for each stored position, compares the played move's resulting evaluation with the best evaluation, classifies the move, and stores game-level statistics.
-
-`GET /api/games/:gameId/analysis` returns the persisted move analysis and statistics.
-
-Set `STOCKFISH_PATH` to a local Stockfish binary. Set `STOCKFISH_VERSION` optionally for display metadata.
-
-The v1 accuracy metric is a Chesslysis-specific transparent metric and is not intended to reproduce Chess.com's proprietary accuracy formula.
-
-## P1.6 — Game Review UI
-
-Added the first interactive review surface:
-- `/games/[gameId]`
-- interactive board driven by stored FEN positions
-- move navigation and move list
-- selected-move engine details
-- evaluation graph
-- review API contract
-- UI contract tests
-
-The UI is intentionally separated from the Prisma repository layer so presentation can be tested independently. The page currently uses a development-safe placeholder loader until the persisted review payload is wired in.
-
-## P1.7 — Player Dashboard
-
-Added:
-- `/dashboard/[username]`
-- games analyzed, win rate, average accuracy, average ACPL and blunders/game cards
-- results distribution
-- accuracy trend visualization
-- recent games table
-- dashboard API contract
-- dashboard unit/contract tests
-
-The dashboard currently uses a safe development loader. The next data-integration step will replace it with Prisma aggregations over persisted game statistics.
-
-## P1.8 — Data Integration + Performance
-
-Added:
-- Prisma-backed player dashboard aggregation
-- completed-game filtering
-- player-perspective accuracy, ACPL and blunder aggregation
-- recent-game transformation
-- 30-second dashboard cache
-- dashboard API backed by persisted data
-- data-integration tests
-
-The cache is intentionally simple for the MVP and can later be replaced by a shared cache when analysis workers are distributed.
-
-## P1.9 — Testing & Hardening
-
-Added a reliability layer covering:
-- Zod API validation contracts
-- Stockfish/analysis timeout utility
-- PGN edge-case tests for castling, promotion and checkmate
-- move-classification tests
-- dashboard statistic tests
-- import batch/deduplication contracts
-- architecture smoke test
-
-Run the suite locally with:
+### 2. Configure environment
 
 ```bash
-npm install
-npm test
+cp .env.example .env
 ```
 
-The test suite is designed to catch regressions before deployment. Environment-dependent integration tests should be run with a configured PostgreSQL database and Stockfish binary.
+On Windows PowerShell:
 
-## P1.10 — Production Stabilization
+```powershell
+Copy-Item .env.example .env
+```
 
-The deployment setup was audited and corrected for the build failures found during Docker testing:
+### 3. Start PostgreSQL and create the schema
 
-- pinned compatible Node/Next/React/Prisma versions instead of using `latest`
-- added missing Tailwind/PostCSS dependencies
-- added explicit `prisma generate` before `next build`
-- enabled Next standalone output for Docker
-- removed build-time copying of `.env.local`
-- added `.dockerignore`
-- fixed Prisma client export mismatch and dashboard queries
-- fixed nullable date/time-control handling
-- connected the game review and dashboard pages to real database repositories
-- added health endpoint and CI verification steps
-
-### Production commands
+With Docker:
 
 ```bash
-cp .env.example .env.local
-npm install
-npx prisma generate
-npm run typecheck
-npm test
-npm run build
+docker compose up -d db
+npx prisma db push
 ```
 
-Docker:
+Or point `DATABASE_URL` at any PostgreSQL database you control and run:
 
 ```bash
-docker compose up --build
+npx prisma db push
 ```
 
-For a first local database setup:
+### 4. Verify before running
 
 ```bash
-docker compose exec app npx prisma db push
+npm run verify
 ```
 
-## Phase 2 — Advanced Insights (P2.1 started)
+This intentionally runs:
 
-The first profile-wide insights layer adds:
+```text
+TypeScript → tests → production build
+```
 
-- performance by color
-- performance by opening
-- performance by time control
-- opening/middlegame/endgame loss patterns
-- weakest-phase detection
-- profile-level accuracy trend data
-- `/api/players/[username]/insights`
-- `/insights/[username]`
+### 5. Start the app
 
-The current phase boundaries use a transparent ply-based heuristic. A later P2 milestone will replace this with board-state/material-aware phase detection and deeper recurring-mistake clustering.
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+Enter a public Chess.com username. Chesslysis imports real games on first dashboard access.
+
+## Real-data flow
+
+For a normal username:
+
+```text
+/dashboard/<username>
+        ↓
+Player absent locally?
+        ↓
+Fetch public Chess.com archives
+        ↓
+Import recent games
+        ↓
+Persist + deduplicate
+        ↓
+Show real dashboard statistics
+        ↓
+Analyze a small batch with Stockfish
+        ↓
+Populate engine-backed intelligence
+```
+
+Some metrics intentionally remain unavailable until Stockfish analysis exists. Chesslysis does not fabricate accuracy, ACPL, blunders, or playing-style scores.
+
+## Important routes
+
+- `/dashboard/[username]` — real player dashboard
+- `/insights/[username]` — profile insights
+- `/openings/[username]` — opening intelligence
+- `/mistakes/[username]` — recurring patterns
+- `/training/[username]` — training priorities
+- `/dna/[username]` — player DNA
+- `/time/[username]` — time-control intelligence
+- `/inspector/[username]` — real interactive game inspector
+- `/games/[gameId]` — direct game review
+- `/api/health` — liveness endpoint
+
+## Deployment
+
+The Docker image uses:
+
+- Node 22
+- Next.js standalone output
+- Stockfish
+- OpenSSL and CA certificates for Prisma
+- dynamic platform `PORT`
+- `HOSTNAME=0.0.0.0`
+- committed `public/.gitkeep` so Docker never fails on a missing public directory
+
+Before a first production deployment, provision PostgreSQL and apply the Prisma schema:
+
+```bash
+npx prisma db push
+```
+
+For long-lived production environments, replace `db push` with reviewed Prisma migrations.
+
+### Render notes
+
+Do not hardcode a platform-specific port unless the platform explicitly requires it. The application defaults to port 3000 locally and the standalone server can consume the `PORT` supplied by the hosting platform.
+
+Required production environment variables:
+
+```text
+DATABASE_URL=<your PostgreSQL connection string>
+STOCKFISH_PATH=/usr/games/stockfish
+CHESSCOM_USER_AGENT=<descriptive application identifier>
+NODE_ENV=production
+```
+
+## Reliability policy
+
+- Exact floating-point equality is avoided for calculated decimal values in tests.
+- Public aggregate metrics are rounded before API/UI display.
+- API routes validate usernames and return controlled errors.
+- Empty datasets produce honest empty states.
+- Malformed individual PGNs do not abort an entire player import.
+- Engine analysis failures mark the affected game as failed instead of crashing the profile.
+- No database query is required merely to compile the Next.js application.
+
+## Master Build / Phase 3
+See `docs/PHASE3_MASTER.md` for the production hardening and Phase 3.1 Performance Intelligence additions.
+
+### Render
+Set `DATABASE_URL` to a PostgreSQL connection string. The Docker entrypoint runs `prisma db push --skip-generate` before starting the standalone Next.js server, so a fresh database receives the required schema automatically.
+
+## Phase 3.2 — Reliability Hardening
+
+The Phase 3.2 master build adds production-focused safeguards:
+
+- fixed the `lib/db/performance.ts` TypeScript syntax error that blocked the Render build
+- canonical Chess.com username resolution before database persistence
+- shared username validation across import and sync paths
+- stable sync error codes and safer HTTP status mapping
+- finite integer validation for sync and analysis request options
+- deterministic performance aggregation with real opponent ratings
+
+See `docs/PHASE3_2_RELIABILITY.md` for the full change list.
+
+## Phase 3.3 — Data Health Center
+
+Added `/data-health/[username]` and a real data-health API so users can inspect import coverage, analysis coverage, pending games and dataset dates. This phase also fixes strict TypeScript callback incompatibilities in the Opening Intelligence and Time Management clients.
 
 
-## Phase 2.2 — Frontend & Backend Integration
+## Phase 3 Final Stabilization + Phase 4 Foundation
 
-This phase separates the presentation layer from the database layer:
+The current master fixes the live issues found during real Render use:
 
-`Client UI → Next.js API Route → Service Layer → Prisma → PostgreSQL`
+- production Stockfish path is configured in Docker
+- engine startup failures are explicit rather than hidden timeouts
+- position evaluation caching reduces batch analysis work
+- batch analysis reports partial success and retries failed games
+- dashboard visuals are consistently dark and responsive on mobile
+- per-game analysis state is visible
+- Phase 4 starts with an observable analysis-status API
 
-### Added
-- client-side dashboard API integration
-- client-side advanced insights API integration
-- loading, error and empty states
-- retry handling for transient API failures
-- safe API error responses instead of raw server exception pages
-- built-in `/dashboard/demo` and `/insights/demo` fixtures that work without a database
-- username search/navigation from the landing page
-- cross-navigation between dashboard and advanced insights
+See `docs/PHASE3_FINAL_STABILIZATION.md` and `docs/PHASE4_ANALYSIS_PIPELINE.md`.
 
-The demo user is intentionally API-backed, so the frontend integration path is the same as for real users.
+
+## Phase 4 analysis queue
+
+Chesslysis now includes durable PostgreSQL-backed analysis jobs with Quick (depth 10), Standard (depth 14), and Deep (depth 18) profiles. See `docs/PHASE4_ANALYSIS_QUEUE.md`.
+
+## Phase 4 Final stabilization
+The production queue is durable and worker-driven: the browser creates/polls jobs while the server claims one persisted job item at a time. See `docs/PHASE4_FINAL_STABILIZATION.md`.
+
+## Phase 4 operational checks
+
+After deployment, visit `/api/health`. A production-ready instance should report Stockfish available and a configured, alive analysis worker. For a stuck queue, `/api/players/<username>/analysis-diagnostics` exposes persisted job-item status, attempts and the latest item error without requiring browser state.

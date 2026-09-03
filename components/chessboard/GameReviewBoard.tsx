@@ -34,7 +34,7 @@ export default function GameReviewBoard({
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(320px,640px)_1fr]">
       <section>
-        <div className="aspect-square overflow-hidden rounded-xl border bg-white shadow-sm">
+        <div className="aspect-square overflow-hidden rounded-xl border border-white/10 bg-[#0d1320] shadow-2xl shadow-black/20">
           <div className="grid h-full grid-cols-8">
             {board.flatMap((row, r) => row.map((piece, c) => (
               <div key={`${r}-${c}`}
@@ -46,10 +46,10 @@ export default function GameReviewBoard({
           </div>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          <button className="rounded border px-3 py-2" onClick={() => setIndex(-1)}>Start</button>
-          <button className="rounded border px-3 py-2" onClick={() => setIndex(Math.max(-1, index-1))}>←</button>
-          <button className="rounded border px-3 py-2" onClick={() => setIndex(Math.min(moves.length-1, index+1))}>→</button>
-          <span className="ml-auto text-sm text-slate-500">
+          <button className="rounded border border-white/10 bg-white/[.03] px-3 py-2 text-slate-200 hover:bg-white/[.07]" onClick={() => setIndex(-1)}>Start</button>
+          <button className="rounded border border-white/10 bg-white/[.03] px-3 py-2 text-slate-200 hover:bg-white/[.07]" onClick={() => setIndex(Math.max(-1, index-1))}>←</button>
+          <button className="rounded border border-white/10 bg-white/[.03] px-3 py-2 text-slate-200 hover:bg-white/[.07]" onClick={() => setIndex(Math.min(moves.length-1, index+1))}>→</button>
+          <span className="ml-auto text-sm text-slate-400">
             {current ? `${current.moveNumber}${current.color === "b" ? "..." : "."} ${current.san}` : "Starting position"}
           </span>
         </div>
@@ -78,7 +78,7 @@ export default function GameReviewBoard({
           <div className="max-h-80 overflow-y-auto grid grid-cols-2 gap-1">
             {moves.map((m, i) => (
               <button key={m.ply} onClick={() => setIndex(i)}
-                className={`rounded px-2 py-1 text-left text-sm ${i === index ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}>
+                className={`rounded px-2 py-1 text-left text-sm ${i === index ? "bg-cyan-400 text-slate-950" : "hover:bg-white/[.06]"}`}>
                 {m.moveNumber}{m.color === "w" ? "." : "..."} {m.san}
                 <span className="float-right text-xs opacity-60">{analyses[m.ply]?.classification ?? ""}</span>
               </button>
@@ -91,7 +91,7 @@ export default function GameReviewBoard({
 }
 
 function Stat({label, value}: {label:string; value:string}) {
-  return <div className="rounded-lg bg-slate-50 p-3"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 truncate font-medium">{value}</div></div>;
+  return <div className="rounded-lg bg-white/[.04] p-3"><div className="text-xs text-slate-500">{label}</div><div className="mt-1 truncate font-medium">{value}</div></div>;
 }
 function formatEval(v:number) { return `${v >= 0 ? "+" : ""}${v.toFixed(2)}`; }
 function pieceUnicode(color:"w"|"b", type:string) {

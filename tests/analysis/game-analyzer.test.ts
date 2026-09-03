@@ -9,7 +9,7 @@ describe("move analysis primitives", () => {
 
   it("never reports negative evaluation loss", () => {
     expect(evaluationLoss(0.5, 0.8)).toBe(0);
-    expect(evaluationLoss(0.8, 0.2)).toBeCloseTo(0.6);
+    expect(evaluationLoss(0.8, 0.2)).toBeCloseTo(0.6, 10);
   });
 
   it("classifies progressively larger losses", () => {

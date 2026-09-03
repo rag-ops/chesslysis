@@ -1,78 +1,29 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-import { db } from "@/lib/db/prisma";
-import { generatePositions } from "@/lib/chess/positions";
-import { importGamesFromChessCom } from "@/lib/chesscom/client";
+import { z, ZodError } from "zod";
+import { importPlayerGames } from "@/lib/chesscom/import-player";
+
+export const runtime = "nodejs";
 
 const schema = z.object({
-  username: z.string().trim().min(3).max(25),
-  maxGames: z.number().int().min(1).max(1000).optional().default(100),
-  timeClasses: z.array(z.enum(["bullet", "blitz", "rapid", "daily", "chess960", "kingofthehill", "threecheck", "antichess", "crazyhouse", "other"])).optional(),
-  from: z.coerce.date().optional(),
-  to: z.coerce.date().optional(),
+  username: z.string().trim().regex(/^[A-Za-z0-9_-]{3,25}$/, "Invalid Chess.com username format."),
+  maxGames: z.number().int().min(1).max(200).optional().default(50),
+  timeClasses: z.array(z.string()).optional(),
 });
 
 export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
-    const games = await importGamesFromChessCom(body.username, body);
-
-    const player = await db.player.upsert({
-      where: { platform_username: { platform: "chess.com", username: body.username } },
-      update: {},
-      create: { username: body.username, platform: "chess.com" },
+    const result = await importPlayerGames(body.username, {
+      maxGames: body.maxGames,
+      timeClasses: body.timeClasses,
     });
-
-    let imported = 0;
-    let skipped = 0;
-
-    for (const game of games) {
-      const externalId = game.uuid ?? game.url;
-      const playedAt = game.end_time ? new Date(game.end_time * 1000) : null;
-
-      const existing = await db.game.findUnique({
-        where: { playerId_externalId: { playerId: player.id, externalId } },
-        select: { id: true },
-      });
-
-      if (existing) {
-        skipped++;
-        continue;
-      }
-
-      const moves = generatePositions(game.pgn!);
-
-      await db.game.create({
-        data: {
-          playerId: player.id,
-          externalId,
-          whiteUsername: game.white.username,
-          blackUsername: game.black.username,
-          whiteRating: game.white.rating,
-          blackRating: game.black.rating,
-          result: game.white.result === "win" ? "1-0" : game.black.result === "win" ? "0-1" : "1/2-1/2",
-          timeControl: game.time_control,
-          playedAt,
-          pgn: game.pgn!,
-          eco: game.eco,
-          analysisStatus: "NOT_ANALYZED",
-          moves: { create: moves },
-        },
-      });
-
-      imported++;
-    }
-
-    return NextResponse.json({
-      username: body.username,
-      found: games.length,
-      imported,
-      skipped,
-      message: `Imported ${imported} new game${imported === 1 ? "" : "s"}.`,
-    });
+    return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: "Invalid import request", details: error.flatten() }, { status: 400 });
+    }
     const message = error instanceof Error ? error.message : "Unable to import games.";
-    const status = message.includes("Invalid Chess.com username") ? 400 : 500;
+    const status = /not found|invalid/i.test(message) ? 404 : /rate limit/i.test(message) ? 429 : 502;
     return NextResponse.json({ error: message }, { status });
   }
 }

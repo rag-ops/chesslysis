@@ -6,11 +6,15 @@ import { ReactNode, useState } from "react";
 
 const nav = [
   ["Overview", "▦", "dashboard"],
-  ["Openings & Tactics", "♞", "insights"],
+  ["Opening Intelligence", "♞", "openings"],
+  ["Advanced Insights", "◈", "insights"],
   ["Recurring Mistakes", "◉", "mistakes"],
+  ["Training Plan", "◎", "training"],
   ["Game Inspector", "⌁", "games"],
   ["Player DNA", "✦", "dna"],
   ["Time Management", "◷", "time"],
+  ["Performance Trends", "↗", "performance"],
+  ["Data Health", "◌", "data-health"],
 ];
 
 export default function AppShell({ username, children }: { username: string; children: ReactNode }) {
@@ -19,10 +23,14 @@ export default function AppShell({ username, children }: { username: string; chi
   const links: Record<string, string> = {
     dashboard: `/dashboard/${encodeURIComponent(username)}`,
     insights: `/insights/${encodeURIComponent(username)}`,
+    openings: `/openings/${encodeURIComponent(username)}`,
     mistakes: `/mistakes/${encodeURIComponent(username)}`,
+    training: `/training/${encodeURIComponent(username)}`,
     games: `/inspector/${encodeURIComponent(username)}`,
     dna: `/dna/${encodeURIComponent(username)}`,
-    time: `/insights/${encodeURIComponent(username)}#time`,
+    time: `/time/${encodeURIComponent(username)}`,
+    performance: `/performance/${encodeURIComponent(username)}`,
+    "data-health": `/data-health/${encodeURIComponent(username)}`,
   };
   return (
     <div className="min-h-screen bg-[#080b12] text-slate-100">
@@ -34,7 +42,7 @@ export default function AppShell({ username, children }: { username: string; chi
         <nav className="space-y-1">
           {nav.map(([label, icon, key]) => {
             const href = links[key];
-            const active = (key === "dashboard" && pathname.startsWith("/dashboard")) || (key === "insights" && pathname.startsWith("/insights")) || (key === "mistakes" && pathname.startsWith("/mistakes"));
+            const active = (key === "dashboard" && pathname.startsWith("/dashboard")) || (key === "insights" && pathname.startsWith("/insights")) || (key === "openings" && pathname.startsWith("/openings")) || (key === "mistakes" && pathname.startsWith("/mistakes")) || (key === "training" && pathname.startsWith("/training")) || (key === "dna" && pathname.startsWith("/dna")) || (key === "games" && pathname.startsWith("/inspector")) || (key === "time" && pathname.startsWith("/time")) || (key === "performance" && pathname.startsWith("/performance")) || (key === "data-health" && pathname.startsWith("/data-health"));
             return <Link key={key} href={href} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${active ? "bg-white/10 text-white shadow-[0_0_20px_rgba(6,182,212,.12)]" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>
               <span className={active ? "text-cyan-300" : "text-slate-500"}>{icon}</span>{label}
             </Link>;

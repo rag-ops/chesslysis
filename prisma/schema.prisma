@@ -15,6 +15,14 @@ enum AnalysisStatus {
   FAILED
 }
 
+enum AnalysisJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 enum MoveClassificationType {
   BEST
   EXCELLENT
@@ -31,9 +39,50 @@ model Player {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   games     Game[]
+  analysisJobs AnalysisJob[]
 
   @@unique([platform, username])
   @@index([username])
+}
+
+model AnalysisJob {
+  id              String            @id @default(cuid())
+  playerId        String
+  status          AnalysisJobStatus @default(QUEUED)
+  profile         String            @default("quick")
+  depth           Int
+  requested       Int
+  completed       Int               @default(0)
+  failed          Int               @default(0)
+  remaining       Int
+  currentGameId   String?
+  cancelRequested Boolean           @default(false)
+  lastError       String?           @db.Text
+  createdAt       DateTime          @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  player          Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  items           AnalysisJobItem[]
+
+  @@index([playerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model AnalysisJobItem {
+  id          String   @id @default(cuid())
+  jobId       String
+  gameId      String
+  status      String   @default("QUEUED")
+  attempts    Int      @default(0)
+  error       String?  @db.Text
+  startedAt   DateTime?
+  completedAt DateTime?
+  job         AnalysisJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, gameId])
+  @@index([jobId, status])
+  @@index([status, startedAt])
 }
 
 model Game {
@@ -56,6 +105,7 @@ model Game {
   player          Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
   moves           Move[]
   statistics      GameStatistics?
+  analysisJobItems AnalysisJobItem[]
 
   @@unique([playerId, externalId])
   @@index([playerId, playedAt])

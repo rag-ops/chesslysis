@@ -6,10 +6,8 @@ services:
       POSTGRES_DB: chesslysis
       POSTGRES_USER: chesslysis
       POSTGRES_PASSWORD: chesslysis_dev
-    ports:
-      - "5432:5432"
-    volumes:
-      - chesslysis_pg:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+    volumes: [chesslysis_pg:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chesslysis -d chesslysis"]
       interval: 5s
@@ -17,9 +15,7 @@ services:
       retries: 10
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     restart: unless-stopped
     depends_on:
       db:
@@ -29,8 +25,8 @@ services:
       STOCKFISH_PATH: /usr/games/stockfish
       NODE_ENV: production
       PORT: 3000
-    ports:
-      - "3000:3000"
+      HOSTNAME: 0.0.0.0
+    ports: ["3000:3000"]
 
 volumes:
   chesslysis_pg:

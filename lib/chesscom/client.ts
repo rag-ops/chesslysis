@@ -1,114 +1,85 @@
+import { assertValidChessComUsername } from "@/lib/chesscom/username";
+
 const API_BASE = "https://api.chess.com/pub";
 
 export type ChessComArchive = { url: string; year: number; month: number };
-
+export type ChessComProfile = { username: string; url?: string; avatar?: string; title?: string; followers?: number; joined?: number; status?: string };
 export type ChessComGame = {
-  url: string;
-  uuid?: string;
-  pgn?: string;
-  time_control?: string;
-  end_time?: number;
-  rated?: boolean;
-  time_class?: string;
-  rules?: string;
-  eco?: string;
+  url: string; uuid?: string; pgn?: string; time_control?: string; end_time?: number;
+  rated?: boolean; time_class?: string; rules?: string; eco?: string;
   white: { username: string; rating?: number; result?: string };
   black: { username: string; rating?: number; result?: string };
 };
-
-export type ImportOptions = {
-  from?: Date;
-  to?: Date;
-  timeClasses?: string[];
-  maxGames?: number;
-};
-
-const userAgent =
-  process.env.CHESSCOM_USER_AGENT ||
-  "Chesslysis/0.1 (portfolio chess analytics project)";
+export type ImportOptions = { from?: Date; to?: Date; timeClasses?: string[]; maxGames?: number };
+const userAgent = process.env.CHESSCOM_USER_AGENT || "Chesslysis/1.0 (+https://github.com/)";
+const TIMEOUT_MS = 15_000;
 
 async function chessComFetch(url: string): Promise<Response> {
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "User-Agent": userAgent,
-    },
-    // The PubAPI can cache responses; do not force a fresh request.
-    cache: "no-store",
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { headers: { Accept: "application/json", "User-Agent": userAgent }, cache: "no-store", signal: controller.signal });
+    if (response.status === 404) throw new Error("Chess.com profile or game archive was not found.");
+    if (response.status === 429) throw new Error("Chess.com is rate-limiting requests. Please wait a moment and try again.");
+    if (!response.ok) throw new Error(`Chess.com API returned HTTP ${response.status}.`);
+    return response;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error("Chess.com API request timed out. Please try again.");
+    throw error;
+  } finally { clearTimeout(timer); }
+}
 
-  if (response.status === 404) throw new Error("Chess.com player or archive not found.");
-  if (response.status === 429) throw new Error("Chess.com API rate limit reached. Please try again later.");
-  if (!response.ok) throw new Error(`Chess.com API returned HTTP ${response.status}.`);
+async function readJson<T>(response: Response): Promise<T> {
+  const text = await response.text();
+  if (!text.trim()) throw new Error("Chess.com API returned an empty response.");
+  try { return JSON.parse(text) as T; }
+  catch { throw new Error("Chess.com API returned invalid JSON."); }
+}
 
-  return response;
+export async function getPlayerProfile(username: string): Promise<ChessComProfile> {
+  const normalized = assertValidChessComUsername(username);
+  const safeUsername = encodeURIComponent(normalized);
+  const profile = await readJson<ChessComProfile>(await chessComFetch(`${API_BASE}/player/${safeUsername}`));
+  if (!profile || typeof profile.username !== "string" || !profile.username.trim()) {
+    throw new Error("Chess.com API returned an invalid player profile.");
+  }
+  return profile;
 }
 
 export async function getArchives(username: string): Promise<ChessComArchive[]> {
-  const safeUsername = encodeURIComponent(username.trim());
-  const response = await chessComFetch(`${API_BASE}/player/${safeUsername}/games/archives`);
-  const data = (await response.json()) as { archives?: string[] };
-
-  return (data.archives ?? []).map((url) => {
+  const safeUsername = encodeURIComponent(assertValidChessComUsername(username));
+  const data = await readJson<{ archives?: string[] }>(await chessComFetch(`${API_BASE}/player/${safeUsername}/games/archives`));
+  return (data.archives ?? []).flatMap((url) => {
     const match = url.match(/games\/(\d{4})\/(\d{2})$/);
-    if (!match) throw new Error(`Unexpected Chess.com archive URL: ${url}`);
-    return { url, year: Number(match[1]), month: Number(match[2]) };
+    return match ? [{ url, year: Number(match[1]), month: Number(match[2]) }] : [];
   });
 }
 
 export async function getArchiveGames(archive: ChessComArchive): Promise<ChessComGame[]> {
-  const response = await chessComFetch(archive.url);
-  const data = (await response.json()) as { games?: ChessComGame[] };
-  return data.games ?? [];
+  const data = await readJson<{ games?: ChessComGame[] }>(await chessComFetch(archive.url));
+  return Array.isArray(data.games) ? data.games : [];
 }
-
 function inDateRange(game: ChessComGame, from?: Date, to?: Date) {
   if (!game.end_time) return true;
   const playedAt = new Date(game.end_time * 1000);
-  if (from && playedAt < from) return false;
-  if (to && playedAt > to) return false;
-  return true;
+  return (!from || playedAt >= from) && (!to || playedAt <= to);
 }
 
-export async function importGamesFromChessCom(
-  username: string,
-  options: ImportOptions = {},
-): Promise<ChessComGame[]> {
-  const normalized = username.trim();
-  if (!/^[A-Za-z0-9_-]{3,25}$/.test(normalized)) {
-    throw new Error("Invalid Chess.com username format.");
-  }
-
+export async function importGamesFromChessCom(username: string, options: ImportOptions = {}): Promise<ChessComGame[]> {
+  const normalized = assertValidChessComUsername(username);
   const maxGames = Math.min(Math.max(options.maxGames ?? 100, 1), 1000);
-  const timeClasses = options.timeClasses?.length
-    ? new Set(options.timeClasses)
-    : undefined;
-
+  const timeClasses = options.timeClasses?.length ? new Set(options.timeClasses) : undefined;
   const archives = await getArchives(normalized);
-  // Newest first so a limited import gives the most recent games.
-  archives.sort((a, b) => b.year - a.year || b.month - a.month);
-
+  archives.sort((a,b) => b.year-a.year || b.month-a.month);
   const games: ChessComGame[] = [];
   for (const archive of archives) {
-    if (options.from) {
-      const archiveEnd = new Date(archive.year, archive.month, 0, 23, 59, 59, 999);
-      if (archiveEnd < options.from) break;
-    }
-    if (options.to) {
-      const archiveStart = new Date(archive.year, archive.month - 1, 1);
-      if (archiveStart > options.to) continue;
-    }
-
     const archiveGames = await getArchiveGames(archive);
     for (const game of archiveGames) {
-      if (!game.pgn || game.rules !== "chess") continue;
-      if (!inDateRange(game, options.from, options.to)) continue;
+      if (!game.pgn || game.rules !== "chess" || !inDateRange(game, options.from, options.to)) continue;
       if (timeClasses && (!game.time_class || !timeClasses.has(game.time_class))) continue;
-
       games.push(game);
-      if (games.length >= maxGames) return games;
     }
+    if (games.length >= maxGames) break;
   }
-
-  return games;
+  return games.sort((a,b) => (b.end_time ?? 0) - (a.end_time ?? 0)).slice(0,maxGames);
 }

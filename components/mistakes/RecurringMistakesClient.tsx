@@ -1,4 +1,5 @@
 "use client";
+import { fetchJson } from "@/lib/api/fetch-json";
 import { useCallback, useEffect, useState } from "react";
 import AppShell from "@/components/layout/AppShell";
 import { ErrorState, LoadingState, EmptyState } from "@/components/ui/AsyncState";
@@ -8,7 +9,7 @@ type Data = { username:string; gamesAnalyzed:number; summary:{ primaryWeakness:s
 const color = (severity:number) => severity >= 75 ? "bg-red-400" : severity >= 55 ? "bg-amber-400" : "bg-cyan-400";
 export default function RecurringMistakesClient({ username }: { username:string }) {
  const [data,setData]=useState<Data|null>(null); const [error,setError]=useState<string|null>(null); const [expanded,setExpanded]=useState<string|null>(null);
- const load=useCallback(async()=>{setError(null);try{const r=await fetch(`/api/players/${encodeURIComponent(username)}/mistakes`,{cache:"no-store"});const b=await r.json();if(!r.ok)throw new Error(b.error||"Could not load recurring mistakes");setData(b)}catch(e){setError(e instanceof Error?e.message:"Could not load recurring mistakes")}},[username]);
+ const load=useCallback(async()=>{setError(null);try{setData(await fetchJson<Data>(`/api/players/${encodeURIComponent(username)}/mistakes`,{cache:"no-store"}))}catch(e){setError(e instanceof Error?e.message:"Could not load recurring mistakes")}},[username]);
  useEffect(()=>{load()},[load]);
  if(error) return <AppShell username={username}><ErrorState title="Could not load mistake patterns" message={error} onRetry={load}/></AppShell>;
  if(!data) return <AppShell username={username}><LoadingState title="Detecting recurring patterns across your games..."/></AppShell>;

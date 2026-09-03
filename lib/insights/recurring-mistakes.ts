@@ -30,7 +30,7 @@ export async function getRecurringMistakes(username: string) {
       if (p === "endgame") theme = "Endgame conversion";
       else if (p === "opening") theme = "Opening accuracy";
       else if (reason.includes("time")) theme = "Time-pressure errors";
-      else if (reason.includes("tactic") || move.isCapture || move.isCheck) theme = "Tactical oversight";
+      else if (reason.includes("tactic") || reason.includes("fork") || reason.includes("pin") || reason.includes("skewer") || move.isCapture || move.isCheck) theme = "Tactical oversight";
       else theme = "Calculation breakdown";
       const b = ensure(theme); b.count++; b.loss.push(loss); b.games.add(game.id);
       if (b.examples.length < 5) b.examples.push({ gameId: game.id, san: move.san, ply: move.ply, phase: p, loss });
