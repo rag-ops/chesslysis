@@ -7,8 +7,8 @@ function workerHeartbeat() {
   try {
     const value = JSON.parse(readFileSync(process.env.ANALYSIS_WORKER_HEARTBEAT_FILE || "/tmp/chesslysis-worker-heartbeat.json", "utf8")) as { at?: string; state?: string; failures?: number; error?: string };
     const ageMs = value.at ? Date.now() - Date.parse(value.at) : Number.POSITIVE_INFINITY;
-    return { configured: Boolean(process.env.ANALYSIS_WORKER_ENABLED !== "false" && process.env.ANALYSIS_WORKER_TOKEN), alive: ageMs < 15_000, ageMs: Number.isFinite(ageMs) ? ageMs : null, ...value };
-  } catch { return { configured: Boolean(process.env.ANALYSIS_WORKER_ENABLED !== "false" && process.env.ANALYSIS_WORKER_TOKEN), alive: false, ageMs: null, state: "no-heartbeat" }; }
+    return { configured: Boolean(process.env.ANALYSIS_WORKER_ENABLED !== "false"), alive: ageMs < 15_000, ageMs: Number.isFinite(ageMs) ? ageMs : null, ...value };
+  } catch { return { configured: Boolean(process.env.ANALYSIS_WORKER_ENABLED !== "false"), alive: false, ageMs: null, state: "no-heartbeat" }; }
 }
 export async function GET() {
   const enginePath = resolveStockfishPath(); let stockfishAvailable = false;

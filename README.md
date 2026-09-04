@@ -229,3 +229,12 @@ The production queue is durable and worker-driven: the browser creates/polls job
 ## Phase 4 operational checks
 
 After deployment, visit `/api/health`. A production-ready instance should report Stockfish available and a configured, alive analysis worker. For a stuck queue, `/api/players/<username>/analysis-diagnostics` exposes persisted job-item status, attempts and the latest item error without requiring browser state.
+
+
+## Phase 4 deployment stability notes
+
+- The web server and analysis worker run as separate Node processes inside the same container.
+- The worker no longer requires `ANALYSIS_WORKER_TOKEN` to exist: when omitted, the internal route accepts only loopback requests from the same container. A configured token remains supported and recommended.
+- Runtime schema syncing is disabled by default with `RUN_DB_PUSH_ON_STARTUP=false` to prevent a transient Prisma startup failure from killing an otherwise valid deployment. Set it to `true` only when intentionally applying the schema to a new database.
+- `/api/health` exposes Stockfish and worker-heartbeat status for deployment debugging.
+- The startup script emits explicit fatal messages for server readiness, schema sync and worker restarts instead of a bare `Exited with status 1`.
